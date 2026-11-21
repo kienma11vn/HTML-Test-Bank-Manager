@@ -3067,11 +3067,16 @@ function executeSearch(keyword) {
                     });
                 }
 
-                // 3. Tìm trong các loại câu hỏi True/False (items)
+                // 3. Tìm trong các loại câu hỏi True/False và Fill (items & answers)
                 if (!matchFound && q.items) {
                     q.items.forEach(item => {
                         let itemText = typeof item === 'string' ? item : item.text;
                         if (itemText && removeVietnameseTones(itemText).includes(normalizedKw)) matchFound = true;
+                        if (!matchFound && item.answers && Array.isArray(item.answers)) {
+                            item.answers.forEach(ans => {
+                                if (removeVietnameseTones(ans).includes(normalizedKw)) matchFound = true;
+                            });
+                        }
                     });
                 }
 
@@ -3149,6 +3154,12 @@ function renderSearchResults(results, keyword) {
             q.items.forEach((item, idx) => {
                 let matchAns = q.matches[idx] ? q.matches[idx].join(', ') : '';
                 html += `<div class="search-opt-line is-correct">${idx + 1}. ${highlightText(item, keyword)} ➔ <strong>${highlightText(matchAns, keyword)}</strong></div>`;
+            });
+        } else if (q.type === 'fill') {
+            q.items.forEach((item, idx) => {
+                let ansText = Array.isArray(item.answers) ? item.answers.join(' hoặc ') : '';
+                let prefix = /^\d+[\.\)]\s/.test(item.text.trim()) ? '' : `${idx + 1}. `;
+                html += `<div class="search-opt-line is-correct">${prefix}${highlightText(item.text, keyword)} ➔ <strong>${highlightText(ansText, keyword)}</strong></div>`;
             });
         }
 
@@ -3448,7 +3459,7 @@ initHome();
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon("image.ico"))
+    app.setWindowIcon(QIcon(resource_path("image.ico")))
     font = app.font()
     font.setPointSize(10)
     app.setFont(font)
