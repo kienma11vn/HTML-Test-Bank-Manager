@@ -763,6 +763,7 @@ class MainWindow(QMainWindow):
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
 
         self.tree.itemSelectionChanged.connect(self.on_tree_selection_changed)
+        self.tree.itemDoubleClicked.connect(self.on_tree_item_double_clicked)
 
         tree_btn_layout = QHBoxLayout()
         btn_add_sub = QPushButton("+ Học Phần")
@@ -3230,12 +3231,14 @@ initHome();
 
     def reload_tree(self):
         self.tree.clear()
+        tooltip_text = "Nháy đúp chuột trái để đổi tên"
         for sub_key, sub_val in self.backend.data.items():
             # Đảo dữ liệu nút cha: [Mã / ID, Tên danh mục]
             sub_node = QTreeWidgetItem(
                 self.tree, [sub_key, sub_val.get("name", "")]
             )
             sub_node.setData(0, Qt.ItemDataRole.UserRole, ("subject", sub_key))
+            sub_node.setToolTip(1, tooltip_text)
 
             topics = sub_val.get("topics", {})
             for top_id, top_val in topics.items():
@@ -3246,6 +3249,7 @@ initHome();
                 top_node.setData(
                     0, Qt.ItemDataRole.UserRole, ("topic", sub_key, str(top_id))
                 )
+                top_node.setToolTip(1, tooltip_text)
         self.tree.expandAll()
 
     def on_tree_selection_changed(self):
@@ -3266,6 +3270,61 @@ initHome();
             self.current_sub_key = None
             self.current_topic_id = None
             self.table_q.setRowCount(0)
+
+    def on_tree_item_double_clicked(self, item, column):
+        # Chỉ kích hoạt khi nháy đúp chuột trái
+        if QApplication.mouseButtons() != Qt.MouseButton.NoButton and not (
+            QApplication.mouseButtons() & Qt.MouseButton.LeftButton
+        ):
+            return
+
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if not data:
+            return
+
+        kind = data[0]
+        if kind == "subject":
+            sub_key = data[1]
+            sub_dict = self.backend.data.get(sub_key)
+            if not sub_dict:
+                return
+
+            current_name = sub_dict.get("name", "")
+            new_name, ok = QInputDialog.getText(
+                self,
+                "Đổi tên Học phần",
+                f"Tên mới cho học phần ({sub_key}):",
+                QLineEdit.EchoMode.Normal,
+                current_name,
+            )
+            if ok and new_name.strip():
+                sub_dict["name"] = new_name.strip()
+                self.reload_tree()
+
+        elif kind == "topic":
+            sub_key, top_id = data[1], data[2]
+            top_dict = (
+                self.backend.data.get(sub_key, {})
+                .get("topics", {})
+                .get(top_id)
+            )
+            if not top_dict:
+                return
+
+            current_name = top_dict.get("name", "")
+            new_name, ok = QInputDialog.getText(
+                self,
+                "Đổi tên Bài học",
+                f"Tên mới cho bài học (ID: {top_id}):",
+                QLineEdit.EchoMode.Normal,
+                current_name,
+            )
+            if ok and new_name.strip():
+                top_dict["name"] = new_name.strip()
+                self.reload_tree()
+                # Giữ lại ngữ cảnh bài học hiện tại nếu đang chọn đúng bài đó
+                if self.current_sub_key == sub_key and self.current_topic_id == top_id:
+                    self.reload_questions()
 
     def reload_questions(self):
         self.table_q.setRowCount(0)
